@@ -1,9 +1,8 @@
 import streamlit as st
 import PyPDF2
 from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_community.tools import DuckDuckGoSearchRun
-from langchain.chains import LLMChain
 import os
 
 # Initializing Streamlit UI
@@ -26,8 +25,10 @@ def extract_claims(text, llm):
         input_variables=["text"],
         template="Extract all factual claims, statistics, financial figures, and dates from the following text. List them clearly:\n\n{text}"
     )
-    chain = LLMChain(llm=llm, prompt=prompt)
-    return chain.run(text)
+    # Using modern LCEL (LangChain Expression Language) syntax
+    chain = prompt | llm
+    response = chain.invoke({"text": text})
+    return response.content
 
 def verify_claim(claim, llm, search_tool):
     search_results = search_tool.run(claim)
@@ -46,8 +47,10 @@ def verify_claim(claim, llm, search_tool):
         Provide the classification and a 1-sentence justification with the real fact.
         """
     )
-    chain = LLMChain(llm=llm, prompt=prompt)
-    return chain.run(claim=claim, search_results=search_results)
+    # Using modern LCEL syntax
+    chain = prompt | llm
+    response = chain.invoke({"claim": claim, "search_results": search_results})
+    return response.content
 
 uploaded_file = st.file_uploader("Upload Marketing PDF", type="pdf")
 
@@ -59,7 +62,7 @@ if uploaded_file and api_key:
 
     with st.spinner("Extracting text and identifying claims..."):
         pdf_text = extract_text_from_pdf(uploaded_file)
-        raw_claims = extract_claims(pdf_text[:4000], llm) # Limit tokens for speed
+        raw_claims = extract_claims(pdf_text[:4000], llm) # Limiting tokens for speed
         
         # Simple split by newline for processing
         claims_list = [c for c in raw_claims.split('\n') if c.strip() and len(c) > 10]
