@@ -11,7 +11,11 @@ st.title("🛡️ Truth Layer: Fact-Check Agent")
 st.markdown("Upload a marketing PDF. This tool extracts claims and cross-references them against the live web.")
 
 # API Key input for evaluator
-api_key = st.text_input("Enter Groq API Key to proceed (100% Free):", type="password")
+api_key = st.text_input(
+    "Enter your Groq API Key:", 
+    type="password", 
+    help="Don't have one? Get a free key instantly at https://console.groq.com/keys"
+)
 
 def extract_text_from_pdf(pdf_file):
     reader = PyPDF2.PdfReader(pdf_file)
