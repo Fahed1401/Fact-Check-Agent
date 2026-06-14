@@ -28,7 +28,19 @@ def extract_text_from_pdf(pdf_file):
 def extract_claims(text, llm):
     prompt = PromptTemplate(
         input_variables=["text"],
-        template="Extract all factual claims, statistics, financial figures, and dates from the following text. List them clearly:\n\n{text}"
+        template="""
+        You are a precision data extraction tool. Analyze the following text and extract verifiable factual claims.
+        
+        CRITICAL EXTRACTION RULES:
+        1. UNIVERSAL CONTEXT: Every claim must be a fully self-contained, standalone sentence. 
+        2. NO PRONOUNS: Explicitly state the subject/entity for every claim based on the context of the text. (e.g., Instead of "It generated $5M", write "Acme Corp generated $5M").
+        3. VERIFIABILITY FILTER: ONLY extract claims that can be fact-checked on the global internet (e.g., historical dates, company statistics, macroeconomic data, scientific facts). 
+        4. IGNORE FLUFF: Do NOT extract internal administrative instructions, application steps, file size limits, or procedural rules.
+        5. Output strictly one claim per line. No bullet points, no introductory text like "Here are the claims:".
+        
+        Text to analyze:
+        {text}
+        """
     )
     chain = prompt | llm
     response = chain.invoke({"text": text})
