@@ -2,7 +2,7 @@ import streamlit as st
 import PyPDF2
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
-from langchain_community.tools import DuckDuckGoSearchRun
+from duckduckgo_search import DDGS
 import os
 
 # Initializing Streamlit UI
@@ -25,13 +25,28 @@ def extract_claims(text, llm):
         input_variables=["text"],
         template="Extract all factual claims, statistics, financial figures, and dates from the following text. List them clearly:\n\n{text}"
     )
-    # Using modern LCEL (LangChain Expression Language) syntax
     chain = prompt | llm
     response = chain.invoke({"text": text})
     return response.content
 
-def verify_claim(claim, llm, search_tool):
-    search_results = search_tool.run(claim)
+# --- CUSTOM BULLETPROOF SEARCH FUNCTION TO BYPASS THE LANGCHAIN ERROR ---
+def live_web_search(query):
+    try:
+        with DDGS() as ddgs:
+            # Fetch top 3 results directly from DDG
+            results = list(ddgs.text(query, max_results=3))
+            if not results:
+                return "No evidence found on the web."
+            # Combine the summary snippets from the search
+            snippets = [res.get("body", "") for res in results]
+            return " ".join(snippets)
+    except Exception as e:
+        return f"Could not fetch live data."
+
+def verify_claim(claim, llm):
+    # Call our custom search function instead of LangChain's tool
+    search_results = live_web_search(claim)
+    
     prompt = PromptTemplate(
         input_variables=["claim", "search_results"],
         template="""
@@ -47,7 +62,6 @@ def verify_claim(claim, llm, search_tool):
         Provide the classification and a 1-sentence justification with the real fact.
         """
     )
-    # Using modern LCEL syntax
     chain = prompt | llm
     response = chain.invoke({"claim": claim, "search_results": search_results})
     return response.content
@@ -56,22 +70,19 @@ uploaded_file = st.file_uploader("Upload Marketing PDF", type="pdf")
 
 if uploaded_file and api_key:
     os.environ["GROQ_API_KEY"] = api_key
-    # Utilizing Llama 3.3 70B via Groq for high-quality, free reasoning
     llm = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile")
-    search_tool = DuckDuckGoSearchRun()
 
     with st.spinner("Extracting text and identifying claims..."):
         pdf_text = extract_text_from_pdf(uploaded_file)
-        raw_claims = extract_claims(pdf_text[:4000], llm) # Limiting tokens for speed
+        raw_claims = extract_claims(pdf_text[:4000], llm) 
         
-        # Simple split by newline for processing
         claims_list = [c for c in raw_claims.split('\n') if c.strip() and len(c) > 10]
 
     st.subheader("Verification Results")
     for claim in claims_list:
         with st.expander(f"Claim: {claim}"):
             with st.spinner("Verifying against live web..."):
-                result = verify_claim(claim, llm, search_tool)
+                result = verify_claim(claim, llm)
                 if "[Verified]" in result:
                     st.success(result)
                 elif "[Inaccurate]" in result:
