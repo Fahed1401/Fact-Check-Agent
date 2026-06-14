@@ -1,6 +1,6 @@
 # 🛡️ Truth Layer: Automated Fact-Check Agent
 
-An AI-powered application designed to serve as a "Truth Layer" for marketing content. Built for the CogCulture Product Management Trainee Assessment.
+An AI-powered application designed to serve as a "Truth Layer" for marketing content.
 
 ## 🚀 Overview
 Marketing materials often contain hallucinated, outdated, or fabricated statistics. This tool acts as an automated defense mechanism. It extracts claims from a provided PDF document and cross-references them against live web data to verify their accuracy.
