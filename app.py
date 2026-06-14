@@ -3,7 +3,7 @@ import PyPDF2
 from datetime import datetime
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 import os
 
 # Initializing Streamlit UI
