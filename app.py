@@ -1,5 +1,6 @@
 import streamlit as st
 import PyPDF2
+from datetime import datetime
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from duckduckgo_search import DDGS
@@ -48,26 +49,35 @@ def live_web_search(query):
         return f"Could not fetch live data."
 
 def verify_claim(claim, llm):
-    # Call our custom search function instead of LangChain's tool
-    search_results = live_web_search(claim)
+    # 1. Actually fetches live data from DuckDuckGo
+    search_results = live_web_search(claim) 
+    current_date = datetime.now().strftime("%B %d, %Y")
     
     prompt = PromptTemplate(
-        input_variables=["claim", "search_results"],
+        input_variables=["claim", "search_results", "current_date"],
         template="""
-        You are a strict fact-checker. 
+        You are a strict, robotic fact-checking algorithm. Today's actual date is {current_date}.
+        
+        Your ONLY job is to compare the Claim against the Live Web Search Data.
+        
+        CRITICAL RULES:
+        1. You must base your decision ENTIRELY on the Live Web Search Data provided below.
+        2. DO NOT rely on your internal training data.
+        3. DO NOT use phrases like "As an AI", "my knowledge cutoff", or "my training data".
+        
         Claim: {claim}
         Live Web Search Data: {search_results}
         
-        Compare the claim against the live web data. Classify as exactly one of the following:
-        - [Verified]: The claim perfectly matches the data.
-        - [Inaccurate]: The claim is partially true but outdated or slightly off.
-        - [False]: No evidence found or contradicts the data.
+        Classify as exactly one of the following:
+        - [Verified]: The claim matches the live web data.
+        - [Inaccurate]: The claim is partially true but outdated based on the live web data.
+        - [False]: No evidence found in the live web data, or it contradicts the data.
         
-        Provide the classification and a 1-sentence justification with the real fact.
+        Provide the classification and a concise 1-sentence justification based strictly on the search data.
         """
     )
     chain = prompt | llm
-    response = chain.invoke({"claim": claim, "search_results": search_results})
+    response = chain.invoke({"claim": claim, "search_results": search_results, "current_date": current_date})
     return response.content
 
 uploaded_file = st.file_uploader("Upload Marketing PDF", type="pdf")
