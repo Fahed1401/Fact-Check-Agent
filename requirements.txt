@@ -1,0 +1,6 @@
+streamlit
+PyPDF2
+langchain
+langchain-groq
+langchain-community
+duckduckgo-search
