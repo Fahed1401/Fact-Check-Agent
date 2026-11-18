@@ -1,6 +1,2 @@
-streamlit
-PyPDF2
-langchain
-langchain-groq
-langchain-community
-ddgs
+-r backend/requirements.txt
+streamlit>=1.55,<2.0
