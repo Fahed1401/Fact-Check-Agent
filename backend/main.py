@@ -10,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 if __package__:
-    from .engine import AnalysisError, MAX_PDF_BYTES, analyze_document, extract_pdf
+    from .engine import AnalysisError, MAX_PDF_BYTES, analyze_document, extract_pdf, configured_groq_model
     from .schemas import AnalysisReport, TextRequest
 else:
-    from engine import AnalysisError, MAX_PDF_BYTES, analyze_document, extract_pdf
+    from engine import AnalysisError, MAX_PDF_BYTES, analyze_document, extract_pdf, configured_groq_model
     from schemas import AnalysisReport, TextRequest
 
 app = FastAPI(title="TruthLayer API", version="2.0.0", docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
@@ -47,7 +47,7 @@ async def analysis_error_handler(_: Request, exc: AnalysisError) -> JSONResponse
 
 @app.get("/api/health")
 async def health() -> dict:
-    return {"status": "ok", "configured": bool(os.getenv("GROQ_API_KEY")), "version": "2.0.0"}
+    return {"status": "ok", "configured": bool(os.getenv("GROQ_API_KEY")), "model": configured_groq_model(), "version": "2.2.0"}
 
 
 @app.post("/api/analyze/text", response_model=AnalysisReport)

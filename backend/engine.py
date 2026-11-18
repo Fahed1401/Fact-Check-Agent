@@ -22,7 +22,49 @@ MAX_PDF_BYTES = 4 * 1024 * 1024
 MAX_PDF_PAGES = 25
 MAX_ANALYZED_CHARS = 30000
 MAX_CLAIMS = 15
-MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+
+
+def configured_groq_model() -> str:
+    """Resolve at request time to respect the Vercel environment configuration."""
+    model = (os.getenv("GROQ_MODEL") or "").strip()
+    if len(model) >= 2 and model[0] == model[-1] and model[0] in {"'", '"'}:
+        model = model[1:-1].strip()
+    return model or DEFAULT_GROQ_MODEL
+
+
+def groq_error_code(response: httpx.Response) -> str | None:
+    """Only expose a sanitized provider code, never the raw provider response."""
+    try:
+        payload = response.json()
+        error = payload.get("error") if isinstance(payload, dict) else None
+        value = (error.get("code") or error.get("type")) if isinstance(error, dict) else None
+        if isinstance(value, str) and re.fullmatch(r"[A-Za-z_0-9-]{1,64}", value):
+            return value
+    except (ValueError, TypeError):
+        pass
+    return None
+
+
+def groq_failure_message(status: int, code: str | None, model: str) -> str:
+    detail = f" [Groq code: {code}]" if code else ""
+    if status == 404:
+        return (
+            f"Groq could not find or serve configured model '{model}' (HTTP 404){detail}. "
+            "In Vercel Production environment variables, set GROQ_MODEL=openai/gpt-oss-120b "
+            "and create a new deployment. Check /api/health to verify the active model."
+        )
+    if status == 401:
+        return f"Groq rejected the API key (HTTP 401){detail}. Check GROQ_API_KEY on Vercel."
+    if status == 403:
+        return f"Groq blocked access to model '{model}' (HTTP 403){detail}. Check Groq project/model permissions."
+    if status == 429:
+        return f"Groq rate limit exceeded (HTTP 429){detail}. Retry later or lower the claim count."
+    if status in {400, 422}:
+        return f"Groq rejected the request format for model '{model}' (HTTP {status}){detail}. Check model capabilities."
+    return f"Groq request failed (HTTP {status}){detail}. Inspect Vercel function logs."
+
+
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
 
 
@@ -93,7 +135,7 @@ async def groq_json(system: str, user: str, api_key: str) -> dict:
                 GROQ_ENDPOINT,
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
                 json={
-                    "model": os.getenv("GROQ_MODEL", MODEL),
+                    "model": configured_groq_model(),
                     "temperature": 0,
                     "response_format": {"type": "json_object"},
                     "messages": [
@@ -108,13 +150,8 @@ async def groq_json(system: str, user: str, api_key: str) -> dict:
         return parse_json_reply(answer)
     except httpx.HTTPStatusError as exc:
         status = exc.response.status_code
-        if status == 401:
-            message = "Groq rejected the API key. Check server credentials."
-        elif status == 429:
-            message = "Groq rate limit reached. Please try again later."
-        else:
-            message = f"Groq request failed (HTTP {status}). Check model and provider status."
-        raise AnalysisError(message, 502 if status != 429 else 429) from exc
+        message = groq_failure_message(status, groq_error_code(exc.response), configured_groq_model())
+        raise AnalysisError(message, 429 if status == 429 else 502) from exc
     except (httpx.TimeoutException, httpx.RequestError) as exc:
         raise AnalysisError("Could not reach the Groq API. Please retry.", 502) from exc
     except (KeyError, IndexError, TypeError, ValueError) as exc:
